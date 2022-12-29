@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QApplication
 from layout import Ui_MainWindow
 import math
 from math import * 
+from numpy import arange
 from helpers import multiple_replace
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -18,7 +19,6 @@ class MplCanvas3d(FigureCanvasQTAgg):
 
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
-        # self.axes = fig.add_subplot(111, projection='3d')
         self.ax = fig.add_axes([0.05, 0.05, 0.85, 0.85],projection='3d')
         super(MplCanvas3d, self).__init__(fig)
 
@@ -37,15 +37,24 @@ class Window(Ui_MainWindow):
         self.reserved_statements = dir(math)
         self.ui.left_border.setText('0')
         self.ui.right_border.setText('100')
+        self.ui.step.setText('1')
         self.params = []
         self.values = []
         self.ui.expression.textChanged.connect(self.expression_convert)
+        self.ui.expression_2.textChanged.connect(self.expression_convert)
+        self.ui.expression_3.textChanged.connect(self.expression_convert)
         self.ui.expression.textChanged.connect(self.param_select)
+        self.ui.expression_2.textChanged.connect(self.param_select)
+        self.ui.expression_3.textChanged.connect(self.param_select)
         self.ui.expression.textChanged.connect(self.second_param_select)
+        self.ui.expression_2.textChanged.connect(self.second_param_select)
+        self.ui.expression_3.textChanged.connect(self.second_param_select)
         self.ui.x_param.textActivated.connect(self.second_param_select)
         self.ui.graph3d.toggled.connect(self.second_param_select)
         self.ui.graph3d.toggled.connect(self.other_params_select)
         self.ui.expression.textChanged.connect(self.other_params_select)
+        self.ui.expression_2.textChanged.connect(self.other_params_select)
+        self.ui.expression_3.textChanged.connect(self.other_params_select)
         self.ui.x_param.textActivated.connect(self.other_params_select)
         self.ui.x_param_2.textActivated.connect(self.other_params_select)
         self.ui.other_params.textActivated.connect(self.clear_edit)
@@ -56,30 +65,35 @@ class Window(Ui_MainWindow):
         self.ui.graph2d.toggled.connect(lambda:self.toggle_3d(self.ui.graph2d))
 
     def expression_convert(self):
-        baka = self.ui.expression.text()
+        baka = f'{self.ui.expression.text()}\n{self.ui.expression_2.text()}\n{self.ui.expression_3.text()}'
         baka = baka.replace('^', '**')
         if baka.count('|') == 2:
             baka = baka.replace('|', 'abs(', 1)
             baka = baka.replace('|', ')', 1)
-        self.ui.output_expression.setText(baka)
+        self.ui.output_expression.append(baka)
         self.expression = baka
         self.buffer = baka
         self.ui.parameters.clear()
 
     def toggle_3d(self,b):
         self.ui.expression.clear()
+        self.ui.expression_2.clear()
+        self.ui.expression_3.clear()
         if b.text() == self.ui.graph3d.text():
             if self.ui.graph3d.isChecked():
+                self.ui.params_3d.setEnabled(True)
                 self.ui.graph3d_widgets.setEnabled(True)
                 for widget in self.ui.graph3d_widgets.children():
                     widget.setEnabled(True)
                 self.ui.left_border_2.setText('0')
                 self.ui.right_border_2.setText('100')
+                self.ui.step_2.setText('1')
                 self.ui.graph_layout.itemAt(0).widget().setParent(None)
                 self.plot = self.plot3d
                 self.ui.graph_layout.addWidget(self.plot)
         if b.text() == self.ui.graph2d.text():
             if self.ui.graph2d.isChecked():
+                self.ui.params_3d.setEnabled(False)
                 self.ui.graph3d_widgets.setEnabled(True)
                 self.ui.x_param_2.clear()
                 for widget in self.ui.graph3d_widgets.children():
@@ -92,20 +106,32 @@ class Window(Ui_MainWindow):
 
     def draw_plot(self):
         x_param = self.ui.x_param.currentText()
-        x = list(range(int(self.ui.left_border.text()), int(self.ui.right_border.text())))
+        x_param_2 = self.ui.x_param_2.currentText()
+        exp = self.buffer.split('\n')
+        py = exp[0]
+        y = []
+        range1 = arange(eval(self.ui.left_border.text()),\
+                        eval(self.ui.right_border.text()),\
+                        eval(self.ui.step.text()))
         if self.ui.graph3d.isChecked():
-            y_param = self.ui.x_param_2.currentText()
-            y = list(range(int(self.ui.left_border_2.text()), int(self.ui.right_border_2.text())))
-            expressions = [self.buffer.replace(x_param, str(i)) for i in x]
-            for i, e in enumerate(expressions):
-                expressions[i] = e.replace(y_param, str(y[i]))
-            z = [eval(e) for e in expressions]
+            range2 = arange(eval(self.ui.left_border_2.text()),\
+                            eval(self.ui.right_border_2.text()),\
+                            eval(self.ui.step_2.text()))
+            px = exp[1]
+            pz = exp[2]
+            x = []
+            z = []
+            for i in range1:
+                for j in range2:
+                    x.append(eval(px.replace(x_param,str(i)).replace(x_param_2,str(j))))
+                    y.append(eval(py.replace(x_param,str(i)).replace(x_param_2,str(j))))
+                    z.append(eval(pz.replace(x_param,str(i)).replace(x_param_2,str(j))))
+
             self.plot.ax.plot(x, y, z, label=self.ui.graph_name.text())
-            self.plot.ax.set_xlabel(x_param)
-            self.plot.ax.set_ylabel(y_param)
         else:
-            y = [eval(self.buffer.replace(x_param, str(i))) for i in x]
-            self.plot.ax.plot(x, y, label=self.ui.graph_name.text())
+            x = range1
+            y = [eval(py.replace(x_param, str(i))) for i in range1]
+            self.plot.ax.plot(range1, y, label=self.ui.graph_name.text())
         self.plot.ax.legend()
         self.plot.draw()
 
@@ -116,7 +142,7 @@ class Window(Ui_MainWindow):
         self.values.clear()
 
     def text_prepare(self):
-        text = self.ui.expression.text()
+        text = self.ui.expression.text()+ '+' + self.ui.expression_2.text() + '+' + self.ui.expression_3.text()
         for letter in text:
             if not letter.isalpha():
                 text = text.replace(letter, ' ')   
@@ -146,7 +172,9 @@ class Window(Ui_MainWindow):
         text = self.text_prepare()
         for word in text:
             items = [self.ui.other_params.itemText(i) for i in range(self.ui.other_params.count())]
-            if word not in (self.ui.x_param.currentText(), self.ui.x_param_2.currentText()) and word not in items:
+            if word not in self.reserved_statements \
+            and word not in (self.ui.x_param.currentText(), self.ui.x_param_2.currentText())\
+            and word not in items:
                         self.ui.other_params.addItem(word)
         self.ui.output_expression.setText(self.expression)
         self.params.clear()
